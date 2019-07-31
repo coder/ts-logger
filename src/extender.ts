@@ -56,7 +56,7 @@ export const createStackdriverExtender = (projectId: string, logId: string): Ext
 			message: options.message,
 		});
 
-		log.write(entry).catch((ex) => {
+		log.write(entry).catch((ex: Error) => {
 			logger.named("GCP").error("Failed to log", field("error", ex));
 		});
 	};
