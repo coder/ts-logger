@@ -1,0 +1,15 @@
+{
+	"compilerOptions": {
+		"declaration": true,
+		"outDir": "out",
+		"sourceMap": true,
+		"target": "esnext",
+		"moduleResolution": "node"
+	},
+	"include": [
+		"src/*.ts"
+	],
+	"exclude": [
+		"src/*test.ts"
+	]
+}
