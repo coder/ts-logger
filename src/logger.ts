@@ -1,3 +1,5 @@
+// tslint:disable no-console
+
 export enum Level {
 	Trace,
 	Debug,
@@ -27,13 +29,18 @@ export class Time {
 	) { }
 }
 
-// `undefined` is allowed to make it easy to conditionally display a field.
-// For example: `error && field("error", error)`
-// tslint:disable-next-line no-any
-export type FieldArray = Array<Field<any> | undefined>;
+export type Argument = any; // tslint:disable-line no-any
 
-// Functions can be used to remove the need to perform operations when the
-// logging level won't output the result anyway.
+/**
+ * `undefined` is allowed to make it easier to conditionally display a field.
+ * For example: `error && field("error", error)`
+ */
+export type FieldArray = Array<Field<Argument> | undefined>;
+
+/**
+ * Functions can be used to remove the need to perform operations when the
+ * logging level won't output the result anyway.
+ */
 export type LogCallback = () => [string, ...FieldArray];
 
 export const time = (expected: number): Time => {
@@ -62,23 +69,22 @@ export abstract class Formatter {
 	protected args = <string[]>[];
 
 	/**
-	 * Add a tag.
+	 * Add a tag (info, warn, a label, etc).
 	 */
 	public abstract tag(name: string, color: string): void;
 
 	/**
-	 * Add string or arbitrary variable.
+	 * Add a string or arbitrary variable.
 	 */
 	public abstract push(arg: string, color?: string, weight?: string): void;
-	public abstract push(arg: any): void; // tslint:disable-line no-any
+	public abstract push(arg: Argument): void;
 
-	// tslint:disable-next-line no-any
-	public abstract fields(fields: Array<Field<any>>): void;
+	public abstract fields(fields: Array<Field<Argument>>): void;
 
 	/**
 	 * Flush out the built arguments.
 	 */
-	public flush(): any[] { // tslint:disable-line no-any
+	public flush(): Argument[] {
 		const args = [this.format, ...this.args];
 		this.format = "";
 		this.args = [];
@@ -89,7 +95,7 @@ export abstract class Formatter {
 	/**
 	 * Get the format string for the value type.
 	 */
-	protected getType(arg: any): string { // tslint:disable-line no-any
+	protected getType(arg: Argument): string {
 		switch (typeof arg) {
 			case "object":
 				return "%o";
@@ -109,25 +115,22 @@ export class BrowserFormatter extends Formatter {
 			+ " padding-bottom: 1px; font-size: 12px; font-weight: bold; color: white;"
 			+ (name.length === 4 ? "padding-left: 3px; padding-right: 4px;" : ""),
 		);
-		// A space to separate the tag from the title.
-		this.push(" ");
+		this.push(" "); // A space to separate the tag from the title.
 	}
 
-	public push(arg: any, color: string = "inherit", weight: string = "normal"): void { // tslint:disable-line no-any
+	public push(arg: Argument, color: string = "inherit", weight: string = "normal"): void {
 		if (color || weight) {
 			this.format += "%c";
 			this.args.push(
-				(color ? `color: ${color};` : "") +
-				(weight ? `font-weight: ${weight};` : ""),
+				(color ? `color: ${color};` : "")
+				+ (weight ? `font-weight: ${weight};` : ""),
 			);
 		}
 		this.format += this.getType(arg);
 		this.args.push(arg);
 	}
 
-	// tslint:disable-next-line no-any
-	public fields(fields: Array<Field<any>>): void {
-		// tslint:disable-next-line no-console
+	public fields(fields: Array<Field<Argument>>): void {
 		console.groupCollapsed(...this.flush());
 		fields.forEach((field) => {
 			this.push(field.identifier, "#3794ff", "bold");
@@ -136,62 +139,59 @@ export class BrowserFormatter extends Formatter {
 			}
 			this.push(": ");
 			this.push(field.value);
-			// tslint:disable-next-line no-console
 			console.log(...this.flush());
 		});
-		// tslint:disable-next-line no-console
 		console.groupEnd();
 	}
 }
 
-export class ServerFormatter extends Formatter {
-	public tag(name: string, color: string): void {
-		const [r, g, b] = this.hexToRgb(color);
-		while (name.length < 5) {
-			name += " ";
-		}
-		this.format += "\u001B[1m";
-		this.format += `\u001B[38;2;${r};${g};${b}m${name} \u001B[0m`;
+class Ansi {
+	public constructor(private readonly mute: boolean) {}
+	public get bold(): string  { return this.mute ? "" : "\u001B[1m"; }
+	public get reset(): string { return this.mute ? "" : "\u001B[0m"; }
+	public rgb(r: number, g: number, b: number): string {
+		return this.mute ? "" : `\u001B[38;2;${r};${g};${b}m`;
 	}
-
-	public push(arg: any, color?: string, weight?: string): void { // tslint:disable-line no-any
-		if (weight === "bold") {
-			this.format += "\u001B[1m";
-		}
-		if (color) {
-			const [r, g, b] = this.hexToRgb(color);
-			this.format += `\u001B[38;2;${r};${g};${b}m`;
-		}
-		this.format += this.getType(arg);
-		if (weight || color) {
-			this.format += "\u001B[0m";
-		}
-		this.args.push(arg);
+	public hex(hex: string): string {
+		return this.mute ? "" : this.rgb(...this.hexToRgb(hex));
 	}
-
-	// tslint:disable-next-line no-any
-	public fields(fields: Array<Field<any>>): void {
-		// tslint:disable-next-line no-any
-		const obj: { [key: string]: any} = {};
-		this.format += "\u001B[38;2;140;140;140m";
-		fields.forEach((field) => {
-			obj[field.identifier] = field.value;
-		});
-		this.args.push(JSON.stringify(obj));
-		console.log(...this.flush()); // tslint:disable-line no-console
-	}
-
-	/**
-	 * Convert fully-formed hex to rgb.
-	 */
 	private hexToRgb(hex: string): [number, number, number] {
 		const integer = parseInt(hex.substr(1), 16);
-
 		return [
 			(integer >> 16) & 0xFF,
 			(integer >> 8) & 0xFF,
 			integer & 0xFF,
 		];
+	}
+}
+
+export class ServerFormatter extends Formatter {
+	private minimumTagWidth = 5;
+	private ansi = new Ansi(!process.stdout.isTTY);
+
+	public tag(name: string, color: string): void {
+		this.format += this.ansi.bold
+			+ this.ansi.hex(color)
+			+ `${name}${" ".repeat(Math.max(0, this.minimumTagWidth - name.length))} `
+			+ this.ansi.reset;
+	}
+
+	public push(arg: Argument, color?: string, weight?: string): void {
+		this.format += (weight === "bold" ? this.ansi.bold : "")
+			+ (color ? this.ansi.hex(color) : "")
+			+ this.getType(arg)
+			+ this.ansi.reset;
+		this.args.push(arg);
+	}
+
+	public fields(fields: Array<Field<Argument>>): void {
+		const obj: { [key: string]: Argument} = {};
+		this.format += this.ansi.rgb(140, 140, 140);
+		fields.forEach((field) => {
+			obj[field.identifier] = field.value;
+		});
+		this.args.push(JSON.stringify(obj), this.ansi.reset);
+		console.log(...this.flush());
 	}
 }
 
@@ -306,7 +306,6 @@ export class Logger {
 		if (this.muted) {
 			l.mute();
 		}
-
 		return l;
 	}
 
@@ -330,7 +329,7 @@ export class Logger {
 
 		const fields = (this.defaultFields
 			? passedFields.filter((f) => !!f).concat(this.defaultFields)
-			: passedFields.filter((f) => !!f)) as Array<Field<any>>; // tslint:disable-line no-any
+			: passedFields.filter((f) => !!f)) as Array<Field<Argument>>;
 
 		const now = Date.now();
 		let times: Array<Field<Time>> = [];
@@ -357,13 +356,11 @@ export class Logger {
 			});
 		}
 
-		// tslint:disable no-console
 		if (hasFields) {
 			this._formatter.fields(fields);
 		} else {
 			console.log(...this._formatter.flush());
 		}
-		// tslint:enable no-console
 
 		this.extenders.forEach((extender) => {
 			extender({
@@ -384,7 +381,6 @@ export class Logger {
 		for (let i = 0; i < str.length; i++) {
 			hash = ((hash << 5) + hash) + str.charCodeAt(i); /* hash * 33 + c */
 		}
-
 		return hash;
 	}
 
@@ -392,9 +388,7 @@ export class Logger {
 		const integer = ((Math.round(r) & 0xFF) << 16)
 			+ ((Math.round(g) & 0xFF) << 8)
 			+ (Math.round(b) & 0xFF);
-
 		const str = integer.toString(16);
-
 		return "#" + "000000".substring(str.length) + str;
 	}
 
@@ -403,7 +397,6 @@ export class Logger {
 	 */
 	private hashStringToColor(str: string): string {
 		const hash = this.djb2(str);
-
 		return this.rgbToHex(
 			(hash & 0xFF0000) >> 16,
 			(hash & 0x00FF00) >> 8,

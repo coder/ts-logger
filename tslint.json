@@ -13,7 +13,6 @@
 		"no-angle-bracket-type-assertion": false,
 		"no-bitwise": false,
 		"no-any": true,
-		"newline-before-return": true,
 		"no-console": true,
 		"no-duplicate-imports": true,
 		"no-consecutive-blank-lines": true,
@@ -36,16 +35,6 @@
 			"check-whitespace",
 			"check-open-brace"
 		],
-		"completed-docs": {
-			"options": [
-				true,
-				"enums",
-				"functions",
-				"methods",
-				"classes"
-			],
-			"severity": "warning"
-		},
 		"no-unused-expression": [
 			true,
 			"allow-fast-null-checks"
