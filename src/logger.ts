@@ -60,78 +60,115 @@ export type Extender = (msg: {
 }) => void;
 
 /**
- * This formats & builds text for logging.
- * It should only be used to build one log item at a time since it stores the
- * currently built items and appends to that.
+ * Format and build a *single* log entry at a time.
  */
 export abstract class Formatter {
-	protected format = "";
-	protected args = <string[]>[];
+	private format = "";
+	private args = <string[]>[];
+	private fields = <Field<Argument>[]>[];
+	private minimumTagWidth = 5;
 
 	/**
-	 * Add a tag (info, warn, a label, etc).
+	 * formatType is used for the strings returned from style() and reset().
 	 */
-	public abstract tag(name: string, color: string): void;
+	public constructor(
+		private readonly formatType: string = "%s",
+		private readonly colors: boolean = true,
+	) {}
 
 	/**
-	 * Add a string or arbitrary variable.
+	 * Add a tag.
 	 */
-	public abstract push(arg: string, color?: string, weight?: string): void;
-	public abstract push(arg: Argument): void;
-
-	public abstract fields(fields: Array<Field<Argument>>): void;
+	public tag(name: string, color: string): void {
+		const padding = " ".repeat(Math.max(0, this.minimumTagWidth - name.length));
+		this.push(name + padding + " ", color);
+	}
 
 	/**
-	 * Flush out the built arguments.
+	 * Add a field or an argument. Arguments will display inline in the order they
+	 * were pushed. Fields will display differently based on the formatter. Fields
+	 * cannot have custom colors.
 	 */
-	public flush(): Argument[] {
-		const args = [this.format, ...this.args];
+	public push(fields: Field<Argument>[]): void;
+	public push(arg: Argument, color?: string, weight?: string): void;
+	public push(arg: Argument | Field<Argument>[], color?: string, weight?: string): void {
+		if (Array.isArray(arg) && arg.every((a) => a instanceof Field)) {
+			return void this.fields.push(...arg);
+		}
+		if (this.colors) {
+			this.format += `${this.formatType}${this.getType(arg)}${this.formatType}`;
+			this.args.push(this.style(color, weight), arg, this.reset());
+		} else {
+			this.format += `${this.getType(arg)}`;
+			this.args.push(arg);
+		}
+	}
+
+	/**
+	 * Write everything out and reset state.
+	 */
+	public write(): void {
+		this.doWrite(...this.flush());
+	}
+
+	/**
+	 * Return current values and reset state.
+	 */
+	protected flush(): [string, string[], Field<Argument>[]] {
+		const args = [this.format, this.args, this.fields] as [string, string[], Field<Argument>[]];
 		this.format = "";
 		this.args = [];
-
+		this.fields = [];
 		return args;
 	}
 
 	/**
+	 * Return a string that applies the specified color and weight.
+	 */
+	protected abstract style(color?: string, weight?: string): string;
+
+	/**
+	 * Return a string that resets all styles.
+	 */
+	protected abstract reset(): string;
+
+	/**
+	 * Write everything out.
+	 */
+	protected abstract doWrite(format: string, args: string[], fields: Field<Argument>[]): void;
+
+	/**
 	 * Get the format string for the value type.
 	 */
-	protected getType(arg: Argument): string {
+	private getType(arg: Argument): string {
 		switch (typeof arg) {
-			case "object":
-				return "%o";
-			case "number":
-				return "%d";
-			default:
-				return "%s";
+			case "object": return "%o";
+			case "number": return "%d";
+			default: return "%s";
 		}
 	}
 }
 
+/**
+ * Display logs in the browser using CSS in the output. Fields are displayed on
+ * individual lines within a group.
+ */
 export class BrowserFormatter extends Formatter {
-	public tag(name: string, color: string): void {
-		this.format += `%c ${name} `;
-		this.args.push(
-			`border: 1px solid #222; background-color: ${color}; padding-top: 1px;`
-			+ " padding-bottom: 1px; font-size: 12px; font-weight: bold; color: white;"
-			+ (name.length === 4 ? "padding-left: 3px; padding-right: 4px;" : ""),
-		);
-		this.push(" "); // A space to separate the tag from the title.
+	public constructor() {
+		super("%c");
 	}
 
-	public push(arg: Argument, color: string = "inherit", weight: string = "normal"): void {
-		if (color || weight) {
-			this.format += "%c";
-			this.args.push(
-				(color ? `color: ${color};` : "")
-				+ (weight ? `font-weight: ${weight};` : ""),
-			);
-		}
-		this.format += this.getType(arg);
-		this.args.push(arg);
+	protected style(color?: string, weight?: string): string {
+		return (color ? `color: ${color};` : "")
+			+ (weight ? `font-weight: ${weight};` : "");
 	}
 
-	public fields(fields: Array<Field<Argument>>): void {
-		console.groupCollapsed(...this.flush());
+	protected reset(): string {
+		return this.style("inherit", "normal");
+	}
+
+	public doWrite(format: string, args: string[], fields: Array<Field<Argument>>): void {
+		console.groupCollapsed(format, ...args);
 		fields.forEach((field) => {
 			this.push(field.identifier, "#3794ff", "bold");
 			if (typeof field.value !== "undefined" && field.value.constructor && field.value.constructor.name) {
@@ -139,22 +176,36 @@ export class BrowserFormatter extends Formatter {
 			}
 			this.push(": ");
 			this.push(field.value);
-			console.log(...this.flush());
+			const flushed = this.flush();
+			console.log(flushed[0], ...flushed[1]);
 		});
 		console.groupEnd();
 	}
 }
 
-class Ansi {
-	public constructor(private readonly mute: boolean) {}
-	public get bold(): string  { return this.mute ? "" : "\u001B[1m"; }
-	public get reset(): string { return this.mute ? "" : "\u001B[0m"; }
-	public rgb(r: number, g: number, b: number): string {
-		return this.mute ? "" : `\u001B[38;2;${r};${g};${b}m`;
+/**
+ * Display logs on the command line using ANSI color codes. Fields are displayed
+ * in a single stringified object inline.
+ */
+export class ServerFormatter extends Formatter {
+	public constructor() {
+		super("%s", !!process.stdout.isTTY);
 	}
-	public hex(hex: string): string {
-		return this.mute ? "" : this.rgb(...this.hexToRgb(hex));
+
+	protected style(color?: string, weight?: string): string {
+		return (weight === "bold" ? "\u001B[1m" : "")
+			+ (color ? this.hex(color) : "");
 	}
+
+	protected reset(): string {
+		return "\u001B[0m";
+	}
+
+	private hex(hex: string): string {
+		const [r, g, b] = this.hexToRgb(hex);
+		return `\u001B[38;2;${r};${g};${b}m`;
+	}
+
 	private hexToRgb(hex: string): [number, number, number] {
 		const integer = parseInt(hex.substr(1), 16);
 		return [
@@ -163,35 +214,14 @@ class Ansi {
 			integer & 0xFF,
 		];
 	}
-}
 
-export class ServerFormatter extends Formatter {
-	private minimumTagWidth = 5;
-	private ansi = new Ansi(!process.stdout.isTTY);
-
-	public tag(name: string, color: string): void {
-		this.format += this.ansi.bold
-			+ this.ansi.hex(color)
-			+ `${name}${" ".repeat(Math.max(0, this.minimumTagWidth - name.length))} `
-			+ this.ansi.reset;
-	}
-
-	public push(arg: Argument, color?: string, weight?: string): void {
-		this.format += (weight === "bold" ? this.ansi.bold : "")
-			+ (color ? this.ansi.hex(color) : "")
-			+ this.getType(arg)
-			+ this.ansi.reset;
-		this.args.push(arg);
-	}
-
-	public fields(fields: Array<Field<Argument>>): void {
+	protected doWrite(format: string, args: string[], fields: Array<Field<Argument>>): void {
+		if (fields.length === 0) {
+			return console.log(format, ...args);
+		}
 		const obj: { [key: string]: Argument} = {};
-		this.format += this.ansi.rgb(140, 140, 140);
-		fields.forEach((field) => {
-			obj[field.identifier] = field.value;
-		});
-		this.args.push(JSON.stringify(obj), this.ansi.reset);
-		console.log(...this.flush());
+		fields.forEach((field) => obj[field.identifier] = field.value);
+		console.log(format + " %s%s%s", ...args, this.style("#8c8c8c"), JSON.stringify(obj), this.reset());
 	}
 }
 
@@ -210,9 +240,8 @@ export class Logger {
 		if (name) {
 			this.nameColor = this.hashStringToColor(name);
 		}
-		const envLevel = process.env.LOG_LEVEL;
-		if (envLevel) {
-			switch (envLevel) {
+		if (typeof process !== "undefined" && typeof process.env !== "undefined") {
+			switch (process.env.LOGLEVEL) {
 				case "trace": this.level = Level.Trace; break;
 				case "debug": this.level = Level.Debug; break;
 				case "info": this.level = Level.Info; break;
@@ -336,11 +365,12 @@ export class Logger {
 		const hasFields = fields && fields.length > 0;
 		if (hasFields) {
 			times = fields.filter((f) => f.value instanceof Time);
+			this._formatter.push(fields);
 		}
 
-		this._formatter.tag(options.type.toUpperCase(), options.tagColor);
+		this._formatter.tag(options.type, options.tagColor);
 		if (this.name && this.nameColor) {
-			this._formatter.tag(this.name.toUpperCase(), this.nameColor);
+			this._formatter.tag(this.name, this.nameColor);
 		}
 		this._formatter.push(options.message);
 		if (times.length > 0) {
@@ -356,11 +386,7 @@ export class Logger {
 			});
 		}
 
-		if (hasFields) {
-			this._formatter.fields(fields);
-		} else {
-			console.log(...this._formatter.flush());
-		}
+		this._formatter.write();
 
 		this.extenders.forEach((extender) => {
 			extender({
