@@ -66,7 +66,7 @@ export abstract class Formatter {
 	private format = "";
 	private args = <string[]>[];
 	private fields = <Field<Argument>[]>[];
-	private minimumTagWidth = 5;
+	private readonly minimumTagWidth = 5;
 
 	/**
 	 * formatType is used for the strings returned from style() and reset().
@@ -80,8 +80,10 @@ export abstract class Formatter {
 	 * Add a tag.
 	 */
 	public tag(name: string, color: string): void {
-		const padding = new Array(Math.max(0, this.minimumTagWidth - name.length)).fill(" ").join("");
-		this.push(name + padding + " ", color);
+		for (let i = name.length; i < this.minimumTagWidth; ++i) {
+			name += " ";
+		}
+		this.push(name + " ", color);
 	}
 
 	/**
