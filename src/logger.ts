@@ -80,7 +80,7 @@ export abstract class Formatter {
 	 * Add a tag.
 	 */
 	public tag(name: string, color: string): void {
-		const padding = " ".repeat(Math.max(0, this.minimumTagWidth - name.length));
+		const padding = new Array(Math.max(0, this.minimumTagWidth - name.length)).fill(" ").join("");
 		this.push(name + padding + " ", color);
 	}
 
