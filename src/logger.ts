@@ -243,7 +243,7 @@ export class Logger {
 			this.nameColor = this.hashStringToColor(name);
 		}
 		if (typeof process !== "undefined" && typeof process.env !== "undefined") {
-			switch (process.env.LOGLEVEL) {
+			switch (process.env.LOG_LEVEL) {
 				case "trace": this.level = Level.Trace; break;
 				case "debug": this.level = Level.Debug; break;
 				case "info": this.level = Level.Info; break;
