@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
 		"declaration": true,
-		"module": "commonjs",
+		"module": "umd",
 		"moduleResolution": "node",
 		"outDir": "out",
 		"sourceMap": true,
