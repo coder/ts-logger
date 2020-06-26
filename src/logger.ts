@@ -223,7 +223,12 @@ export class ServerFormatter extends Formatter {
 		}
 		const obj: { [key: string]: Argument} = {};
 		fields.forEach((field) => obj[field.identifier] = field.value);
-		console.log(format + " %s%s%s", ...args, this.style("#8c8c8c"), JSON.stringify(obj), this.reset());
+		console.log(
+			"[%s] " + format + " %s%s%s",
+			new Date().toISOString(),
+			...args,
+			this.style("#8c8c8c"), JSON.stringify(obj), this.reset(),
+		);
 	}
 }
 
