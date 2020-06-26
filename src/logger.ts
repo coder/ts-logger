@@ -219,7 +219,11 @@ export class ServerFormatter extends Formatter {
 
 	protected doWrite(format: string, args: string[], fields: Array<Field<Argument>>): void {
 		if (fields.length === 0) {
-			return console.log(format, ...args);
+			return console.log(
+				"[%s] " + format,
+				new Date().toISOString(),
+				...args
+			);
 		}
 		const obj: { [key: string]: Argument} = {};
 		fields.forEach((field) => obj[field.identifier] = field.value);
