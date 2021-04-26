@@ -4,7 +4,7 @@
   "scripts": {
     "lint": "eslint src/**",
     "prepare": "tsc",
-    "test": "jest"
+    "test": "mocha --require ts-node/register ./test/*.test.ts"
   },
   "version": "2.0.0",
   "main": "out/index.js",
@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@google-cloud/logging": "^9.2.1",
-    "@types/jest": "^24.0.16",
+    "@types/mocha": "^8.2.2",
     "@types/node": "^12.6.8",
     "@typescript-eslint/eslint-plugin": "^4.22.0",
     "@typescript-eslint/parser": "^4.22.0",
@@ -24,19 +24,10 @@
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-prettier": "^3.4.0",
-    "jest": "^24.8.0",
+    "mocha": "^8.3.2",
     "prettier": "^2.2.1",
-    "ts-jest": "^24.0.2",
+    "ts-node": "^9.1.1",
     "typescript": "^3.5.3"
   },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "ts"
-    ],
-    "transform": {
-      "^.+\\.tsx?$": "ts-jest"
-    },
-    "testRegex": ".*\\.test\\.ts"
-  }
+  "dependencies": {}
 }

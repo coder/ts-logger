@@ -5,7 +5,7 @@ export enum Level {
   Trace,
   Debug,
   Info,
-  Warning,
+  Warn,
   Error,
 }
 
@@ -103,7 +103,7 @@ export function doLog(level: Level, ...args: Argument): void {
       return console.debug(...args)
     case Level.Info:
       return console.info(...args)
-    case Level.Warning:
+    case Level.Warn:
       return console.warn(...args)
     case Level.Error:
       return console.error(...args)
@@ -160,7 +160,7 @@ export abstract class Formatter {
     if (Array.isArray(arg) && arg.every((a) => a instanceof Field)) {
       return void this.message.fields.push(...arg)
     }
-    if (this.colors) {
+    if (this.colors && (color || weight)) {
       this.message.format += `${this.formatType}${this.getType(arg)}${this.formatType}`
       this.message.args.push(this.style(color, weight), arg, this.reset())
     } else {
@@ -325,7 +325,7 @@ export class Logger {
           this.level = Level.Info
           break
         case "warn":
-          this.level = Level.Warning
+          this.level = Level.Warn
           break
         case "error":
           this.level = Level.Error
@@ -367,7 +367,7 @@ export class Logger {
       message,
       fields,
       tagColor: "#FF9D00",
-      level: Level.Warning,
+      level: Level.Warn,
     })
   }
 

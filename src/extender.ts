@@ -15,7 +15,7 @@ export const createStackdriverExtender = (projectId: string, logId: string): Ext
         return gcl.protos.google.logging.type.LogSeverity.DEBUG
       case Level.Info:
         return gcl.protos.google.logging.type.LogSeverity.INFO
-      case Level.Warning:
+      case Level.Warn:
         return gcl.protos.google.logging.type.LogSeverity.WARNING
       case Level.Error:
         return gcl.protos.google.logging.type.LogSeverity.ERROR
