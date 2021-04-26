@@ -1,17 +1,17 @@
 {
-	"compilerOptions": {
-		"declaration": true,
-		"module": "commonjs",
-		"moduleResolution": "node",
-		"outDir": "out",
-		"sourceMap": true,
-		"strict": true,
-		"target": "esnext"
-	},
-	"include": [
-		"src/*.ts"
-	],
-	"exclude": [
-		"src/*test.ts"
-	]
+  "compilerOptions": {
+    "declaration": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "out",
+    "sourceMap": true,
+    "strict": true,
+    "target": "es2017"
+  },
+  "include": [
+    "src/*.ts"
+  ],
+  "exclude": [
+    "src/*test.ts"
+  ]
 }
