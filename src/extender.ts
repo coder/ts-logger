@@ -1,5 +1,5 @@
 import * as gcl from "@google-cloud/logging"
-import { Extender, logger, field } from "./logger"
+import { Extender, field, Level, logger } from "./logger"
 
 export const createStackdriverExtender = (projectId: string, logId: string): Extender => {
   const logging = new gcl.Logging({
@@ -8,24 +8,22 @@ export const createStackdriverExtender = (projectId: string, logId: string): Ext
   })
 
   const log = logging.log(logId)
-  const convertSeverity = (
-    severity: "trace" | "info" | "warn" | "debug" | "error",
-  ): gcl.protos.google.logging.type.LogSeverity => {
+  const convertSeverity = (severity: Level): gcl.protos.google.logging.type.LogSeverity => {
     switch (severity) {
-      case "trace":
-      case "debug":
+      case Level.Trace:
+      case Level.Debug:
         return gcl.protos.google.logging.type.LogSeverity.DEBUG
-      case "info":
+      case Level.Info:
         return gcl.protos.google.logging.type.LogSeverity.INFO
-      case "error":
-        return gcl.protos.google.logging.type.LogSeverity.ERROR
-      case "warn":
+      case Level.Warning:
         return gcl.protos.google.logging.type.LogSeverity.WARNING
+      case Level.Error:
+        return gcl.protos.google.logging.type.LogSeverity.ERROR
     }
   }
 
   return (options): void => {
-    const severity = convertSeverity(options.type)
+    const severity = convertSeverity(options.level)
     const metadata: { [id: string]: string } = {}
     if (options.fields) {
       options.fields.forEach((f) => {
@@ -37,9 +35,7 @@ export const createStackdriverExtender = (projectId: string, logId: string): Ext
     }
 
     const entry = log.entry(
-      {
-        severity: severity,
-      },
+      { severity },
       {
         ...metadata,
         message: options.message,

@@ -1,3 +1,6 @@
+/**
+ * Numeric log level. A higher number is higher severity.
+ */
 export enum Level {
   Trace,
   Debug,
@@ -6,6 +9,9 @@ export enum Level {
   Error,
 }
 
+/**
+ * A message field.
+ */
 export class Field<T> {
   public constructor(public readonly identifier: string, public readonly value: T) {}
 
@@ -17,12 +23,17 @@ export class Field<T> {
   }
 }
 
+/**
+ * A time field.
+ */
 export class Time {
   public constructor(public readonly expected: number, public readonly ms: number) {}
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Argument = any
+/**
+ * A generic argument to log alongside a message.
+ */
+export type Argument = any // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /**
  * `undefined` is allowed to make it easier to conditionally display a field.
@@ -36,35 +47,97 @@ export type FieldArray = Array<Field<Argument> | undefined>
  */
 export type LogCallback = () => [string, ...FieldArray]
 
+/**
+ * Log how long something took. Call this before doing the thing then pass it
+ * into the logger after finished to log the time it took.
+ */
 export const time = (expected: number): Time => {
   return new Time(expected, Date.now())
 }
 
+/**
+ * A field to show with the message.
+ */
 export const field = <T>(name: string, value: T): Field<T> => {
   return new Field(name, value)
 }
 
-export type Extender = (msg: {
-  message: string
-  level: Level
-  type: "trace" | "info" | "warn" | "debug" | "error"
+/**
+ * Represents a log message, its fields, level, and color.
+ */
+export type Message = {
+  message: string | LogCallback
   fields?: FieldArray
-  section?: string
-}) => void
+  level: Level
+  tagColor: string
+}
+
+/**
+ * An extra function to call with a message.
+ */
+export type Extender = (msg: Message & { section?: string }) => void
+
+/**
+ * Represents a message formatted for use with something like `console.log`.
+ */
+export type MessageFormat = {
+  /**
+   * For example, something like `[%s] %s`.
+   */
+  format: ""
+  /**
+   * The arguments that get applied to the format string.
+   */
+  args: string[]
+  /**
+   * The fields to add under the message.
+   */
+  fields: Field<Argument>[]
+}
+
+export function doLog(level: Level, ...args: Argument): void {
+  switch (level) {
+    case Level.Trace:
+      return console.trace(...args)
+    case Level.Debug:
+      return console.debug(...args)
+    case Level.Info:
+      return console.info(...args)
+    case Level.Warning:
+      return console.warn(...args)
+    case Level.Error:
+      return console.error(...args)
+  }
+}
 
 /**
  * Format and build a *single* log entry at a time.
  */
 export abstract class Formatter {
-  private format = ""
-  private args = <string[]>[]
-  private fields = <Field<Argument>[]>[]
+  private message: MessageFormat
+
   private readonly minimumTagWidth = 5
 
   /**
    * formatType is used for the strings returned from style() and reset().
    */
-  public constructor(private readonly formatType: string = "%s", private readonly colors: boolean = true) {}
+  public constructor(
+    private readonly formatType: string = "%s",
+    private readonly colors: boolean = true,
+  ) {
+    this.message = this.newMessage()
+  }
+
+  /**
+   * Return a new/empty message.
+   */
+  private newMessage(): MessageFormat {
+    return {
+      format: "",
+      args: [],
+      fields: [],
+    }
+  }
 
   /**
    * Add a tag.
@@ -85,33 +158,32 @@ export abstract class Formatter {
   public push(arg: Argument, color?: string, weight?: string): void
   public push(arg: Argument | Field<Argument>[], color?: string, weight?: string): void {
     if (Array.isArray(arg) && arg.every((a) => a instanceof Field)) {
-      return void this.fields.push(...arg)
+      return void this.message.fields.push(...arg)
     }
     if (this.colors) {
-      this.format += `${this.formatType}${this.getType(arg)}${this.formatType}`
-      this.args.push(this.style(color, weight), arg, this.reset())
+      this.message.format += `${this.formatType}${this.getType(arg)}${this.formatType}`
+      this.message.args.push(this.style(color, weight), arg, this.reset())
     } else {
-      this.format += `${this.getType(arg)}`
-      this.args.push(arg)
+      this.message.format += `${this.getType(arg)}`
+      this.message.args.push(arg)
     }
   }
 
   /**
    * Write everything out and reset state.
    */
-  public write(): void {
-    this.doWrite(...this.flush())
+  public write(level: Level): void {
+    const message = this.flush()
+    this.doWrite(level, message)
   }
 
   /**
    * Return current values and reset state.
    */
-  protected flush(): [string, string[], Field<Argument>[]] {
-    const args = [this.format, this.args, this.fields] as [string, string[], Field<Argument>[]]
-    this.format = ""
-    this.args = []
-    this.fields = []
-    return args
+  protected flush(): MessageFormat {
+    const message = this.message
+    this.message = this.newMessage()
+    return message
   }
 
   /**
@@ -127,7 +199,7 @@ export abstract class Formatter {
   /**
    * Write everything out.
    */
-  protected abstract doWrite(format: string, args: string[], fields: Field<Argument>[]): void
+  protected abstract doWrite(level: Level, message: MessageFormat): void
 
   /**
    * Get the format string for the value type.
@@ -161,17 +233,21 @@ export class BrowserFormatter extends Formatter {
     return this.style("inherit", "normal")
   }
 
-  public doWrite(format: string, args: string[], fields: Array<Field<Argument>>): void {
-    console.groupCollapsed(format, ...args)
-    fields.forEach((field) => {
+  public doWrite(level: Level, message: MessageFormat): void {
+    console.groupCollapsed(message.format, ...message.args)
+    message.fields.forEach((field) => {
       this.push(field.identifier, "#3794ff", "bold")
-      if (typeof field.value !== "undefined" && field.value.constructor && field.value.constructor.name) {
+      if (
+        typeof field.value !== "undefined" &&
+        field.value.constructor &&
+        field.value.constructor.name
+      ) {
         this.push(` (${field.value.constructor.name})`)
       }
       this.push(": ")
       this.push(field.value)
-      const flushed = this.flush()
-      console.log(flushed[0], ...flushed[1])
+      const m = this.flush()
+      doLog(level, m.format, ...m.args)
     })
     console.groupEnd()
   }
@@ -204,16 +280,17 @@ export class ServerFormatter extends Formatter {
     return [(integer >> 16) & 0xff, (integer >> 8) & 0xff, integer & 0xff]
   }
 
-  protected doWrite(format: string, args: string[], fields: Array<Field<Argument>>): void {
-    if (fields.length === 0) {
-      return console.log("[%s] " + format, new Date().toISOString(), ...args)
+  protected doWrite(level: Level, message: MessageFormat): void {
+    if (message.fields.length === 0) {
+      return doLog(level, "[%s] " + message.format, new Date().toISOString(), ...message.args)
     }
     const obj: { [key: string]: Argument } = {}
-    fields.forEach((field) => (obj[field.identifier] = field.value))
-    console.log(
-      "[%s] " + format + " %s%s%s",
+    message.fields.forEach((field) => (obj[field.identifier] = field.value))
+    doLog(
+      level,
+      "[%s] " + message.format + " %s%s%s",
       new Date().toISOString(),
-      ...args,
+      ...message.args,
       this.style("#8c8c8c"),
       JSON.stringify(obj),
       this.reset(),
@@ -276,7 +353,6 @@ export class Logger {
   public info(message: string, ...fields: FieldArray): void
   public info(message: LogCallback | string, ...fields: FieldArray): void {
     this.handle({
-      type: "info",
       message,
       fields,
       tagColor: "#008FBF",
@@ -288,7 +364,6 @@ export class Logger {
   public warn(message: string, ...fields: FieldArray): void
   public warn(message: LogCallback | string, ...fields: FieldArray): void {
     this.handle({
-      type: "warn",
       message,
       fields,
       tagColor: "#FF9D00",
@@ -300,7 +375,6 @@ export class Logger {
   public trace(message: string, ...fields: FieldArray): void
   public trace(message: LogCallback | string, ...fields: FieldArray): void {
     this.handle({
-      type: "trace",
       message,
       fields,
       tagColor: "#888888",
@@ -312,7 +386,6 @@ export class Logger {
   public debug(message: string, ...fields: FieldArray): void
   public debug(message: LogCallback | string, ...fields: FieldArray): void {
     this.handle({
-      type: "debug",
       message,
       fields,
       tagColor: "#84009E",
@@ -324,7 +397,6 @@ export class Logger {
   public error(message: string, ...fields: FieldArray): void
   public error(message: LogCallback | string, ...fields: FieldArray): void {
     this.handle({
-      type: "error",
       message,
       fields,
       tagColor: "#B00000",
@@ -344,21 +416,15 @@ export class Logger {
     return l
   }
 
-  private handle(options: {
-    type: "trace" | "info" | "warn" | "debug" | "error"
-    message: string | LogCallback
-    fields?: FieldArray
-    level: Level
-    tagColor: string
-  }): void {
-    if (this.level > options.level || this.muted) {
+  private handle(message: Message): void {
+    if (this.level > message.level || this.muted) {
       return
     }
 
-    let passedFields = options.fields || []
-    if (typeof options.message === "function") {
-      const values = options.message()
-      options.message = values.shift() as string
+    let passedFields = message.fields || []
+    if (typeof message.message === "function") {
+      const values = message.message()
+      message.message = values.shift() as string
       passedFields = values as FieldArray
     }
 
@@ -374,11 +440,11 @@ export class Logger {
       this._formatter.push(fields)
     }
 
-    this._formatter.tag(options.type, options.tagColor)
+    this._formatter.tag(Level[message.level].toLowerCase(), message.tagColor)
     if (this.name && this.nameColor) {
       this._formatter.tag(this.name, this.nameColor)
     }
-    this._formatter.push(options.message)
+    this._formatter.push(message.message)
     if (times.length > 0) {
       times.forEach((time) => {
         const diff = now - time.value.ms
@@ -388,19 +454,19 @@ export class Logger {
         const green = expPer < 1 ? max : min
         const red = expPer >= 1 ? max : min
         this._formatter.push(` ${time.identifier}=`, "#3794ff")
-        this._formatter.push(`${diff}ms`, this.rgbToHex(red > 0 ? red : 0, green > 0 ? green : 0, 0))
+        this._formatter.push(
+          `${diff}ms`,
+          this.rgbToHex(red > 0 ? red : 0, green > 0 ? green : 0, 0),
+        )
       })
     }
 
-    this._formatter.write()
+    this._formatter.write(message.level)
 
     this.extenders.forEach((extender) => {
       extender({
         section: this.name,
-        fields: options.fields,
-        level: options.level,
-        message: options.message as string,
-        type: options.type,
+        ...message,
       })
     })
   }
@@ -417,7 +483,8 @@ export class Logger {
   }
 
   private rgbToHex(r: number, g: number, b: number): string {
-    const integer = ((Math.round(r) & 0xff) << 16) + ((Math.round(g) & 0xff) << 8) + (Math.round(b) & 0xff)
+    const integer =
+      ((Math.round(r) & 0xff) << 16) + ((Math.round(g) & 0xff) << 8) + (Math.round(b) & 0xff)
     const str = integer.toString(16)
     return "#" + "000000".substring(str.length) + str
   }
