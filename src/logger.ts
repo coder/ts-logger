@@ -73,11 +73,6 @@ export type Message = {
 }
 
 /**
- * An extra function to call with a message.
- */
-export type Extender = (msg: Message & { section?: string }) => void
-
-/**
  * Represents a message formatted for use with something like `console.log`.
  */
 export type MessageFormat = {
@@ -308,7 +303,6 @@ export class Logger {
     private _formatter: Formatter,
     private readonly name?: string,
     private readonly defaultFields?: FieldArray,
-    private readonly extenders: Extender[] = [],
   ) {
     if (name) {
       this.nameColor = this.hashStringToColor(name)
@@ -343,10 +337,6 @@ export class Logger {
    */
   public mute(): void {
     this.muted = true
-  }
-
-  public extend(extender: Extender): void {
-    this.extenders.push(extender)
   }
 
   public info(fn: LogCallback): void
@@ -409,7 +399,7 @@ export class Logger {
    * Each name is deterministically generated a color.
    */
   public named(name: string, ...fields: FieldArray): Logger {
-    const l = new Logger(this._formatter, name, fields, this.extenders)
+    const l = new Logger(this._formatter, name, fields)
     if (this.muted) {
       l.mute()
     }
@@ -462,13 +452,6 @@ export class Logger {
     }
 
     this._formatter.write(message.level)
-
-    this.extenders.forEach((extender) => {
-      extender({
-        section: this.name,
-        ...message,
-      })
-    })
   }
 
   /**
