@@ -12,7 +12,7 @@
   "author": "Coder",
   "license": "MIT",
   "devDependencies": {
-    "@types/mocha": "^8.2.2",
+    "@types/mocha": "^10.0.4",
     "@types/node": "^12.6.8",
     "@typescript-eslint/eslint-plugin": "^4.22.0",
     "@typescript-eslint/parser": "^4.22.0",
@@ -20,7 +20,7 @@
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-prettier": "^3.4.0",
-    "mocha": "^8.3.2",
+    "mocha": "^10.2.0",
     "prettier": "^2.2.1",
     "ts-node": "^10.9.1",
     "typescript": "^3.5.3"
